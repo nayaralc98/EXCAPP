@@ -24,15 +24,29 @@ export function AuthShell(props: {
   footer?: ReactNode;
 }) {
   return (
-    <main className="flex min-h-[80dvh] items-center justify-center bg-linear-to-b from-brand/10 to-transparent px-4 py-16">
-      <div className="w-full max-w-sm">
-        {site.logo ? <img alt={site.name} className="mx-auto mb-6 h-10 w-auto" src={site.logo} /> : null}
-        <h1 className="text-center font-display text-2xl font-semibold tracking-tight">{props.title}</h1>
-        <p className="mt-2 text-center text-sm text-zinc-600">{props.lead}</p>
-        <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8">
-          {props.children}
+    <main className="grid min-h-[80dvh] lg:grid-cols-2">
+      <aside
+        aria-hidden
+        className="relative hidden overflow-hidden bg-brand p-12 text-white lg:flex lg:flex-col lg:justify-end"
+      >
+        <div className="absolute -right-24 -top-24 size-96 rounded-full bg-white/10" />
+        <div className="absolute right-12 top-40 size-40 bg-accent [clip-path:polygon(100%_0,100%_100%,0_100%)]" />
+        <div className="hazard absolute inset-x-0 top-0 h-3" />
+        <p className="relative max-w-md font-display text-6xl font-black leading-[0.95] tracking-tight">
+          {text.panel.title}
+        </p>
+        <p className="relative mt-5 max-w-sm text-lg leading-7 text-white">{text.panel.lead}</p>
+      </aside>
+      <div className="flex items-center justify-center bg-zinc-100 px-4 py-12 sm:py-16">
+        <div className="w-full max-w-sm">
+          {site.logo ? <img alt={site.name} className="mb-6 h-10 w-auto" src={site.logo} /> : null}
+          <h1 className="font-display text-3xl font-extrabold tracking-tight">{props.title}</h1>
+          <p className="mt-2 text-base text-zinc-700">{props.lead}</p>
+          <div className="mt-6 rounded-lg border-2 border-zinc-900 bg-white p-6 shadow-[6px_6px_0_0_var(--color-brand)] sm:p-8">
+            {props.children}
+          </div>
+          {props.footer && <p className="mt-6 text-sm text-zinc-700">{props.footer}</p>}
         </div>
-        {props.footer && <p className="mt-6 text-center text-sm text-zinc-600">{props.footer}</p>}
       </div>
     </main>
   );

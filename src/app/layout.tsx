@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Archivo, Atkinson_Hyperlegible_Next } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { DevBanner } from '@/components/dev-banner';
@@ -22,13 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-// Fonts (design.md §1): `const heading = <Face>({ subsets: ['latin'], variable: '--font-heading' })` from
-// `next/font/google` (and `--font-body`), then both `.variable` classes in the <html> className below.
-const fonts = '';
+// Archivo, pesada y ancha como la rotulación de maquinaria, para los títulos; Atkinson Hyperlegible Next, hecha para
+// leerse con poca nitidez y a pleno sol, para el texto.
+const heading = Archivo({ subsets: ['latin'], variable: '--font-heading' });
+const body = Atkinson_Hyperlegible_Next({ subsets: ['latin'], variable: '--font-body' });
+const fonts = `${heading.variable} ${body.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html className={fonts} lang="en">
+    <html className={fonts} lang="es">
       <body className="flex min-h-dvh flex-col bg-white font-sans text-zinc-900 antialiased">
         <SiteHeader />
         <div className="flex-1">{children}</div>

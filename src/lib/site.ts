@@ -1,7 +1,8 @@
 // The app's name and header links, in one place: the header, the footer and every page title read them.
 export const site = {
-  name: 'New Totalum app',
-  description: 'Built with Totalum',
+  name: 'Gestión de Obra',
+  description:
+    'Albaranes y fichajes desde el móvil, también sin cobertura, y toda la gestión en la oficina para empresas de transporte y movimiento de tierras.',
   /** The logo image's URL (the user's file): the header, the footer and the browser icon show it. Empty: the name alone. */
   logo: '',
   /**
@@ -9,7 +10,7 @@ export const site = {
    * /account (404 while `false`), and the header shows Sign in / Get started (or Sign out). Set it when the app needs
    * sign-in.
    */
-  accounts: false,
+  accounts: true,
   /** Sign-up confirms the e-mail with an 8-digit code before the first sign-in. Only when the owner asks for it. */
   verifyEmail: false,
   /** Staff/members-only app (nothing public): signed-out pages show only the brand; `npm run check` refuses data there. */
@@ -30,7 +31,11 @@ export const site = {
   /** Links everyone sees (landing sections, public pages). */
   nav: [] as { href: string; label: string }[],
   /** Links only signed-in users see (dashboard, lists, admin). */
-  appNav: [{ href: '/account', label: 'Account' }] as { href: string; label: string }[],
+  appNav: [
+    { href: '/app', label: 'App conductor' },
+    { href: '/oficina', label: 'Oficina' },
+    { href: '/account', label: 'Cuenta' },
+  ] as { href: string; label: string }[],
 };
 
 /** The header and footer appear once the app has something to put in them: links or accounts (a one-page "hello" has neither). */

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 
 import { signOut } from '@/lib/auth-client';
 
-// The header's Sign out: style it with `className` like the header's other links.
+// The header's Cerrar sesión: style it with `className` like the header's other links.
 export function SignOutButton({ className }: { className?: string }) {
   const router = useRouter();
   return (
@@ -17,7 +17,7 @@ export function SignOutButton({ className }: { className?: string }) {
       }}
       type="button"
     >
-      Sign out
+      Cerrar sesión
     </button>
   );
 }
