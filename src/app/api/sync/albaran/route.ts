@@ -3,6 +3,7 @@ import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
 import { albaranes } from '@/db/schema';
+import { leerAlbaran, limpiar, normMatricula } from '@/lib/leer-albaran';
 import { loadPage } from '@/lib/load-page';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -32,6 +33,13 @@ export async function POST(req: Request) {
 
   let fotoUrl: string | null = null;
   let fotoKey: string | null = null;
+  let obra = limpiar(String(form.get('obra') ?? ''));
+  let cliente = limpiar(String(form.get('cliente') ?? ''));
+  let matricula = normMatricula(String(form.get('matricula') ?? ''));
+  let numero = '';
+  let material = '';
+  let cantidad = '';
+  let leidoIa = 0;
   const foto = form.get('foto');
   if (foto instanceof File && foto.size > 0) {
     if (!IMAGE_TYPES.includes(foto.type) || foto.size > 10_000_000)
@@ -44,13 +52,24 @@ export async function POST(req: Request) {
       console.error('sync albaran: foto no subida', err);
       return Response.json({ ok: false, error: 'No se pudo subir la foto' }, { status: 502 });
     }
+    // Lectura automática: solo rellena lo que el conductor no indicó.
+    const lec = await leerAlbaran(new Uint8Array(await foto.arrayBuffer()), foto.type);
+    if (lec) {
+      leidoIa = 1;
+      obra ||= limpiar(lec.obra);
+      cliente ||= limpiar(lec.cliente);
+      matricula ||= normMatricula(lec.matricula);
+      numero = limpiar(lec.numero, 40);
+      material = limpiar(lec.material, 80);
+      cantidad = limpiar(lec.cantidad, 40);
+    }
   }
   const id = crypto.randomUUID();
   await db
     .insert(albaranes)
     .values({
       id, fotoUrl, fotoKey, conductorId: user.id, fechaHora: fecha,
-      obra: String(form.get('obra') ?? '').slice(0, 120), cliente: String(form.get('cliente') ?? '').slice(0, 120),
+      obra, cliente, matricula, numero, material, cantidad, leidoIa,
       lat: num(form.get('lat')), lng: num(form.get('lng')), estadoSync: 'sincronizado', uuidLocal: uuid,
     })
     .onConflictDoNothing();

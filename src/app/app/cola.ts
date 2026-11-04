@@ -12,6 +12,7 @@ export type Registro = {
   foto?: Blob | null;
   obra?: string;
   cliente?: string;
+  matricula?: string;
   serverId?: string;
   // fichaje
   accion?: 'entrada' | 'salida';
@@ -64,6 +65,7 @@ async function enviar(r: Registro): Promise<{ ok: boolean; red: boolean; id?: st
       f.set('fecha_hora', String(r.fechaHora));
       f.set('obra', r.obra ?? '');
       f.set('cliente', r.cliente ?? '');
+      f.set('matricula', r.matricula ?? '');
       if (r.lat != null && r.lng != null) (f.set('lat', String(r.lat)), f.set('lng', String(r.lng)));
       if (r.foto) f.set('foto', r.foto, 'albaran.jpg');
       res = await fetch('/api/sync/albaran', { method: 'POST', body: f });

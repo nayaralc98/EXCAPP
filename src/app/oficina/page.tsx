@@ -1,10 +1,13 @@
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { albaranes, users } from '@/db/schema';
 import { Badge, button, EmptyState, input } from '@/components/ui';
 import { albaranesQuery } from '@/lib/albaranes-query';
+import { leerAlbaran, limpiar, normMatricula } from '@/lib/leer-albaran';
 import { fmtFechaHora } from '@/lib/fechas';
 import { loadPage } from '@/lib/load-page';
 import { esOficina, perfilQuery, rolDe } from '@/lib/roles';
@@ -14,11 +17,31 @@ import { Visor } from './visor';
 
 export const metadata = { title: 'Albaranes' };
 type SP = Record<string, string | undefined>;
-const tono = { pendiente: 'amber', sincronizado: 'green', error: 'red' } as const;
+
+// Vuelve a leer la foto con IA; solo rellena los campos que están vacíos.
+async function leer(form: FormData) {
+  'use server';
+  const id = String(form.get('id') ?? '');
+  const { user, data } = await loadPage((me) => [perfilQuery(me), db.select().from(albaranes).where(eq(albaranes.id, id)).limit(1)], { signedIn: true });
+  if (!user || !esOficina(rolDe(user, data[0]))) return;
+  const a = data[1][0];
+  if (!a?.fotoKey) return;
+  const lec = await leerAlbaran(new URL(await totalum.files.getSignedUrl(a.fotoKey)));
+  if (!lec) return;
+  await db
+    .update(albaranes)
+    .set({
+      obra: a.obra || limpiar(lec.obra), cliente: a.cliente || limpiar(lec.cliente), matricula: a.matricula || normMatricula(lec.matricula),
+      numero: a.numero || limpiar(lec.numero, 40), material: a.material || limpiar(lec.material, 80), cantidad: a.cantidad || limpiar(lec.cantidad, 40), leidoIa: 1,
+    })
+    .where(eq(albaranes.id, id));
+  console.log('albarán releído', id);
+  revalidatePath('/oficina');
+}
 
 export default async function Page({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
-  const f = { desde: sp.desde, hasta: sp.hasta, conductor: sp.conductor, obra: sp.obra, cliente: sp.cliente };
+  const f = { desde: sp.desde, hasta: sp.hasta, conductor: sp.conductor, obra: sp.obra, cliente: sp.cliente, matricula: sp.matricula };
   const { user, data } = await loadPage(
     (me) => [perfilQuery(me), albaranesQuery(f), db.select({ id: users.id, name: users.name, email: users.email }).from(users).orderBy(asc(users.name)).limit(200)],
     { signedIn: true },
@@ -32,14 +55,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       action={
         <div className="flex gap-2">
           <a className={button.secondary} href={`/api/export?formato=pdf&${qs}`}>Exportar PDF</a>
-          <a className={button.primary} href={`/api/export?formato=xls&${qs}`}>Exportar Excel</a>
+          <a className={button.primary} href={`/api/export?formato=xlsx&${qs}`}>Exportar Excel</a>
         </div>
       }
       actual="/oficina"
       description="Filtra por fecha, conductor, obra o cliente y abre la foto original."
       title="Albaranes"
     >
-      <form className="grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6" method="get">
+      <form className="grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4" method="get">
         <label className="text-sm font-medium">Desde<input className={input} defaultValue={f.desde} name="desde" type="date" /></label>
         <label className="text-sm font-medium">Hasta<input className={input} defaultValue={f.hasta} name="hasta" type="date" /></label>
         <label className="text-sm font-medium">Conductor
@@ -50,6 +73,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
         </label>
         <label className="text-sm font-medium">Obra<input className={input} defaultValue={f.obra} name="obra" /></label>
         <label className="text-sm font-medium">Cliente<input className={input} defaultValue={f.cliente} name="cliente" /></label>
+        <label className="text-sm font-medium">Matrícula<input className={input} defaultValue={f.matricula} name="matricula" /></label>
         <div className="flex items-end gap-2">
           <button className={button.primary} type="submit">Filtrar</button>
           <a className={button.secondary} href="/oficina">Limpiar</a>
@@ -67,7 +91,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
                 <th className="px-4 py-3">Conductor</th>
                 <th className="hidden px-4 py-3 sm:table-cell">Obra</th>
                 <th className="hidden px-4 py-3 md:table-cell">Cliente</th>
-                <th className="px-4 py-3">Estado</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Matrícula</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Material</th>
+                <th className="px-4 py-3">Lectura</th>
               </tr>
             </thead>
             <tbody>
@@ -79,7 +105,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
                   <td className="px-4 py-2">{r.conductor}</td>
                   <td className="hidden px-4 py-2 sm:table-cell">{r.obra}</td>
                   <td className="hidden px-4 py-2 md:table-cell">{r.cliente}</td>
-                  <td className="px-4 py-2"><Badge tone={tono[r.estadoSync as keyof typeof tono] ?? 'gray'}>{r.estadoSync}</Badge></td>
+                  <td className="hidden px-4 py-2 lg:table-cell">{r.matricula}</td>
+                  <td className="hidden px-4 py-2 lg:table-cell">{[r.material, r.cantidad].filter(Boolean).join(' · ')}{r.numero ? <div className="text-xs text-zinc-500">Nº {r.numero}</div> : null}</td>
+                  <td className="px-4 py-2">
+                    {r.leidoIa ? <Badge tone="green">Leído con IA</Badge> : r.fotoKey ? (
+                      <form action={leer}><input name="id" type="hidden" value={r.id} /><button className={button.secondary} type="submit">Leer con IA</button></form>
+                    ) : <Badge tone="gray">Sin foto</Badge>}
+                  </td>
                 </tr>
               ))}
             </tbody>

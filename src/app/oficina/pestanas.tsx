@@ -6,8 +6,11 @@ import type { Rol } from '@/lib/roles';
 const tabs = [
   { href: '/oficina', label: 'Albaranes' },
   { href: '/oficina/fichajes', label: 'Fichajes' },
+  { href: '/oficina/horas', label: 'Horas' },
+  { href: '/oficina/resumen', label: 'Resumen' },
   { href: '/oficina/mapa', label: 'Mapa' },
   { href: '/oficina/obras', label: 'Obras' },
+  { href: '/oficina/vehiculos', label: 'Máquinas' },
   { href: '/oficina/equipo', label: 'Equipo' },
 ];
 

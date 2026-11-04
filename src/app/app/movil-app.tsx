@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { guardar, nuevoId, posicion, sincronizar, todos, type Estado, type Registro } from './cola';
 
 type Vista = 'inicio' | 'camara' | 'lista' | 'fichaje';
+type Vehiculo = { id: string; matricula: string; nombre: string };
 type Obra = { id: string; nombre: string; cliente: string };
 
 const fmt = (ms: number) =>
@@ -120,6 +121,8 @@ function Camara({ userId, alta, volver }: { userId: string; alta: (r: Registro) 
   const [fallo, setFallo] = useState(false);
   const [obras, setObras] = useState<Obra[]>([]);
   const [obraSel, setObraSel] = useState('');
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
+  const [vehSel, setVehSel] = useState('');
   const [hecho, setHecho] = useState<{ url: string; uuid: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -139,11 +142,20 @@ function Camara({ userId, alta, volver }: { userId: string; alta: (r: Registro) 
       const c = localStorage.getItem('obras');
       if (c) setObras(JSON.parse(c));
       setObraSel(localStorage.getItem('obraSel') ?? '');
+      setVehSel(localStorage.getItem('vehSel') ?? '');
+      const v = localStorage.getItem('vehiculos');
+      if (v) setVehiculos(JSON.parse(v));
     } catch {}
     fetch('/api/obras')
       .then((r) => (r.ok ? (r.json() as Promise<{ obras?: Obra[] }>) : null))
       .then((j) => {
         if (j?.obras) (setObras(j.obras), localStorage.setItem('obras', JSON.stringify(j.obras)));
+      })
+      .catch(() => {});
+    fetch('/api/vehiculos')
+      .then((r) => (r.ok ? (r.json() as Promise<{ vehiculos?: Vehiculo[] }>) : null))
+      .then((j) => {
+        if (j?.vehiculos) (setVehiculos(j.vehiculos), localStorage.setItem('vehiculos', JSON.stringify(j.vehiculos)));
       })
       .catch(() => {});
     abrir();
@@ -157,7 +169,7 @@ function Camara({ userId, alta, volver }: { userId: string; alta: (r: Registro) 
     const uuid = nuevoId();
     await alta({
       uuid, tipo: 'albaran', userId, fechaHora: Date.now(), estado: 'pendiente', foto: blob,
-      obra: o?.nombre ?? '', cliente: o?.cliente ?? '', lat: p?.lat ?? null, lng: p?.lng ?? null,
+      obra: o?.nombre ?? '', cliente: o?.cliente ?? '', matricula: vehSel, lat: p?.lat ?? null, lng: p?.lng ?? null,
     });
     cerrar();
     setHecho({ url: URL.createObjectURL(blob), uuid });
@@ -207,6 +219,23 @@ function Camara({ userId, alta, volver }: { userId: string; alta: (r: Registro) 
           ))}
         </select>
       </label>
+      {vehiculos.length > 0 && (
+        <label className="text-lg font-bold">
+          Máquina o camión (opcional)
+          <select
+            className="mt-1 w-full rounded-xl border-2 border-black bg-white px-3 py-4 text-lg"
+            onChange={(e) => (setVehSel(e.target.value), localStorage.setItem('vehSel', e.target.value))}
+            value={vehSel}
+          >
+            <option value="">Sin indicar</option>
+            {vehiculos.map((v) => (
+              <option key={v.id} value={v.matricula}>
+                {v.matricula} · {v.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {fallo ? (
         <div className="rounded-2xl border-2 border-black p-4">
           <p className="mb-3 text-lg font-bold">No se puede abrir la cámara integrada. Usa la cámara del móvil:</p>

@@ -33,8 +33,14 @@ export const albaranes = sqliteTable(
     lng: real(),
     estadoSync: text('estado_sync').notNull().default('sincronizado'),
     uuidLocal: text('uuid_local').notNull(),
+    numero: text().notNull().default(''),
+    matricula: text().notNull().default(''),
+    material: text().notNull().default(''),
+    cantidad: text().notNull().default(''),
+    leidoIa: integer('leido_ia').notNull().default(0),
   },
   (t) => [
+    index('albaranes_matricula_idx').on(t.matricula),
     index('albaranes_conductor_idx').on(t.conductorId),
     index('albaranes_fecha_idx').on(t.fechaHora),
     index('albaranes_uuid_idx').on(t.uuidLocal),
@@ -61,3 +67,17 @@ export const fichajes = sqliteTable(
     uniqueIndex('fichajes_usuario_uuid_unique').on(t.usuarioId, t.uuidLocal),
   ],
 );
+
+/** Máquinas y camiones de la empresa (matrícula y nombre). */
+export const vehiculos = sqliteTable('vehiculos', {
+  id: text().primaryKey(),
+  matricula: text().notNull().unique(),
+  nombre: text().notNull().default(''),
+  tipo: text().notNull().default('camión'),
+});
+
+/** Avisos ya enviados por e-mail (evita repetirlos). */
+export const avisosEnviados = sqliteTable('avisos_enviados', {
+  clave: text().primaryKey(),
+  enviadoEn: integer('enviado_en').notNull(),
+});
