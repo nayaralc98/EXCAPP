@@ -81,3 +81,28 @@ export const avisosEnviados = sqliteTable('avisos_enviados', {
   clave: text().primaryKey(),
   enviadoEn: integer('enviado_en').notNull(),
 });
+
+/** Incidencias de un toque (avería, espera, otro) y repostajes (foto del ticket leída con IA). */
+export const incidencias = sqliteTable(
+  'incidencias',
+  {
+    id: text().primaryKey(),
+    usuarioId: text('usuario_id').notNull().references(() => users.id),
+    tipo: text().notNull(),
+    fechaHora: integer('fecha_hora').notNull(),
+    comentario: text().notNull().default(''),
+    fotoUrl: text('foto_url'),
+    fotoKey: text('foto_key'),
+    litros: real(),
+    importe: real(),
+    estacion: text().notNull().default(''),
+    lat: real(),
+    lng: real(),
+    uuidLocal: text('uuid_local').notNull(),
+  },
+  (t) => [
+    index('incidencias_fecha_idx').on(t.fechaHora),
+    index('incidencias_usuario_idx').on(t.usuarioId, t.fechaHora),
+    uniqueIndex('incidencias_usuario_uuid_unique').on(t.usuarioId, t.uuidLocal),
+  ],
+);
