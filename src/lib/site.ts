@@ -1,6 +1,6 @@
 // The app's name and header links, in one place: the header, the footer and every page title read them.
 export const site = {
-  name: 'Gestión de Obra',
+  name: 'EXCAPP',
   description:
     'Albaranes y fichajes desde el móvil, también sin cobertura, y toda la gestión en la oficina para empresas de transporte y movimiento de tierras.',
   /** The logo image's URL (the user's file): the header, the footer and the browser icon show it. Empty: the name alone. */

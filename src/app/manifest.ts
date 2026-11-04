@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Gestión diaria de obra',
-    short_name: 'Gestión obra',
+    name: 'EXCAPP',
+    short_name: 'EXCAPP',
     description: 'Albaranes y fichajes desde el móvil, también sin cobertura.',
     start_url: '/app',
     scope: '/',
