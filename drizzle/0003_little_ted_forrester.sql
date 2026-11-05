@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX `albaranes_conductor_uuid_unique` ON `albaranes` (`conductor_id`,`uuid_local`);--> statement-breakpoint
+CREATE UNIQUE INDEX `fichajes_usuario_uuid_unique` ON `fichajes` (`usuario_id`,`uuid_local`);

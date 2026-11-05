@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+/*
+ * EXCAPP: naranja de maquinaria (brand) y azul acero (accent) sobre gris claro; la arena y el barro
+ * son el apoyo de tierra. Radios cortos y firmes: se lee como chapa, no como burbuja.
+ */
+@theme {
+  --color-brand: #c2410c;
+  --color-accent: #1d4e89;
+  --color-sand: #efe6d8;
+  --color-clay: #7a4a2b;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+}
+
+/*
+ * Fonts: load them in layout.tsx with next/font (`variable: '--font-body'` / `'--font-heading'`) and put both
+ * `.variable` classes on <html>; `font-sans` and `font-display` then use them. Keep this block `inline`: a font
+ * mapped in the plain @theme block is computed on :root, before the variable exists, and never shows.
+ */
+@theme inline {
+  --font-sans: var(--font-body, ui-sans-serif), system-ui, sans-serif;
+  --font-display: var(--font-heading, var(--font-body, ui-sans-serif)), system-ui, sans-serif;
+}
+
+/* Cinta de obra: franjas naranja y negro. */
+.hazard {
+  background-image: repeating-linear-gradient(135deg, #18181b 0 14px, var(--color-brand) 14px 28px);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
