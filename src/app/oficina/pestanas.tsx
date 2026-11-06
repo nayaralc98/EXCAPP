@@ -4,6 +4,7 @@ import { AppPage, Card } from '@/components/ui';
 import type { Rol } from '@/lib/roles';
 
 const tabs = [
+  { href: '/oficina/panel', label: 'Panel' },
   { href: '/oficina', label: 'Albaranes' },
   { href: '/oficina/fichajes', label: 'Fichajes' },
   { href: '/oficina/horas', label: 'Horas' },

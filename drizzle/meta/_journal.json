@@ -43,6 +43,13 @@
       "when": 1793792225911,
       "tag": "0005_dark_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793979368153,
+      "tag": "0006_km_fichajes",
+      "breakpoints": true
     }
   ]
 }

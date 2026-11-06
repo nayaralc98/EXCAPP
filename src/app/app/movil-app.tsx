@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { guardar, nuevoId, posicion, sincronizar, todos, type Estado, type Registro } from './cola';
+import { guardar, nuevoId, pedirUbicacion, permisoUbicacion, posicion, sincronizar, todos, type Estado, type Registro } from './cola';
 
 type Vista = 'inicio' | 'camara' | 'lista' | 'fichaje';
 type Vehiculo = { id: string; matricula: string; nombre: string };
@@ -298,27 +298,182 @@ function Lista({ regs, volver }: { regs: Registro[]; volver: () => void }) {
   );
 }
 
+type Paso = 'ubicacion' | 'foto' | 'confirmar';
+type Pos = { lat: number; lng: number; precision: number };
+
+/** Ventana a pantalla completa para cada paso del fichaje. */
+function Ventana({ titulo, children, cerrar }: { titulo: string; children: ReactNode; cerrar: () => void }) {
+  return (
+    <div aria-modal className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog">
+      <div className="flex max-h-[95dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-5 text-black sm:rounded-3xl">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-2xl font-extrabold">{titulo}</h2>
+          <button aria-label="Cancelar" className="rounded-xl border-2 border-black px-3 py-2 text-lg font-bold" onClick={cerrar} type="button">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Fichaje({ userId, regs, alta, volver }: { userId: string; regs: Registro[]; alta: (r: Registro) => Promise<void>; volver: () => void }) {
+  const [paso, setPaso] = useState<Paso | null>(null);
+  const [pos, setPos] = useState<Pos | null>(null);
+  const [errPos, setErrPos] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [foto, setFoto] = useState<Blob | null>(null);
+  const [km, setKm] = useState('');
+  const [veh, setVeh] = useState('');
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const ultimo = regs[0];
   const siguiente = ultimo?.accion === 'entrada' ? 'salida' : 'entrada';
-  const fichar = async () => {
-    setOcupado(true);
-    const p = await posicion(3000);
-    await alta({ uuid: nuevoId(), tipo: 'fichaje', userId, fechaHora: Date.now(), estado: 'pendiente', accion: siguiente, lat: p?.lat ?? null, lng: p?.lng ?? null });
-    setOcupado(false);
+  const kmEntrada = siguiente === 'salida' ? ultimo?.km ?? null : null;
+  const fotoUrl = useMemo(() => (foto ? URL.createObjectURL(foto) : ''), [foto]);
+  useEffect(() => () => void (fotoUrl && URL.revokeObjectURL(fotoUrl)), [fotoUrl]);
+
+  useEffect(() => {
+    try {
+      setVeh(localStorage.getItem('vehSel') ?? '');
+      const v = localStorage.getItem('vehiculos');
+      if (v) setVehiculos(JSON.parse(v));
+    } catch {}
+    fetch('/api/vehiculos')
+      .then((r) => (r.ok ? (r.json() as Promise<{ vehiculos?: Vehiculo[] }>) : null))
+      .then((j) => j?.vehiculos && (setVehiculos(j.vehiculos), localStorage.setItem('vehiculos', JSON.stringify(j.vehiculos))))
+      .catch(() => {});
+  }, []);
+
+  const localizar = async () => {
+    setBuscando(true);
+    setErrPos('');
+    const r = await pedirUbicacion();
+    setBuscando(false);
+    if ('error' in r) return setErrPos(r.error);
+    setPos(r);
+    setPaso('foto');
   };
+  const empezar = async () => {
+    setPos(null);
+    setFoto(null);
+    setKm('');
+    setErrPos('');
+    setPaso('ubicacion');
+    // Si el permiso ya está concedido, localiza sin esperar al toque.
+    if ((await permisoUbicacion()) === 'granted') localizar();
+  };
+  const cancelar = () => setPaso(null);
+
+  const kmNum = km.trim() === '' ? null : Number(km.replace(/[.\s]/g, '').replace(',', '.'));
+  const kmValido = kmNum === null || (Number.isFinite(kmNum) && kmNum >= 0 && kmNum < 10_000_000);
+  const kmMenor = kmNum !== null && kmEntrada != null && kmNum < kmEntrada;
+
+  const fichar = async () => {
+    if (!foto || !kmValido) return;
+    setOcupado(true);
+    try { localStorage.setItem('vehSel', veh); } catch {}
+    await alta({
+      uuid: nuevoId(), tipo: 'fichaje', userId, fechaHora: Date.now(), estado: 'pendiente', accion: siguiente,
+      lat: pos?.lat ?? null, lng: pos?.lng ?? null, fotoKm: foto, km: kmNum !== null ? Math.round(kmNum) : null, matricula: veh,
+    });
+    setOcupado(false);
+    setPaso(null);
+  };
+
   return (
     <div className="flex flex-1 flex-col gap-4">
       <Volver onClick={volver} />
       <button
-        className={`${big} py-12 text-3xl disabled:opacity-60 ${siguiente === 'entrada' ? 'bg-green-700 text-white' : 'bg-zinc-900 text-white'}`}
-        disabled={ocupado}
-        onClick={fichar}
+        className={`${big} py-12 text-3xl ${siguiente === 'entrada' ? 'bg-green-700 text-white' : 'bg-zinc-900 text-white'}`}
+        onClick={empezar}
         type="button"
       >
-        {ocupado ? 'Guardando…' : siguiente === 'entrada' ? 'Fichar entrada' : 'Fichar salida'}
+        {siguiente === 'entrada' ? 'Fichar entrada' : 'Fichar salida'}
       </button>
+      <p className="text-center text-base font-bold">Pide tu ubicación y una foto de los km del camión.</p>
+
+      {paso === 'ubicacion' && (
+        <Ventana cerrar={cancelar} titulo="📍 Tu ubicación">
+          <p className="text-lg">Para registrar bien el fichaje necesitamos saber dónde estás. Si el móvil pregunta, pulsa <b>Permitir</b>.</p>
+          {errPos && (
+            <div className="rounded-2xl border-2 border-red-700 bg-red-50 p-4">
+              <p className="text-lg font-bold text-red-700">{errPos}</p>
+              <p className="mt-1 text-base">Activa la ubicación en los ajustes del móvil (Ajustes → Ubicación → navegador) y vuelve a intentarlo.</p>
+            </div>
+          )}
+          <button className={`${big} bg-brand text-white disabled:opacity-60`} disabled={buscando} onClick={localizar} type="button">
+            {buscando ? 'Buscando señal GPS…' : errPos ? 'Reintentar' : 'Permitir ubicación'}
+          </button>
+          {errPos && (
+            <button className="rounded-2xl border-2 border-black px-6 py-4 text-lg font-bold" onClick={() => setPaso('foto')} type="button">
+              Seguir sin ubicación
+            </button>
+          )}
+        </Ventana>
+      )}
+
+      {paso === 'foto' && (
+        <Ventana cerrar={cancelar} titulo="🚚 Km del camión">
+          {pos ? (
+            <p className="rounded-xl bg-green-700 px-4 py-2 font-bold text-white">✓ Ubicación lista (±{pos.precision} m)</p>
+          ) : (
+            <p className="rounded-xl bg-amber-300 px-4 py-2 font-bold">Sin ubicación en este fichaje</p>
+          )}
+          <p className="text-lg">Haz una foto clara del cuentakilómetros {siguiente === 'entrada' ? 'al empezar' : 'al terminar'} la jornada.</p>
+          <label className={`${big} cursor-pointer bg-brand text-white`}>
+            📷 Foto de los km
+            <input
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (f) (setFoto(await reducir(f)), setPaso('confirmar'));
+              }}
+              type="file"
+            />
+          </label>
+        </Ventana>
+      )}
+
+      {paso === 'confirmar' && foto && (
+        <Ventana cerrar={cancelar} titulo={siguiente === 'entrada' ? 'Confirmar entrada' : 'Confirmar salida'}>
+          <img alt="Cuentakilómetros" className="max-h-[35dvh] w-full rounded-2xl border-2 border-black object-contain" src={fotoUrl} />
+          <button className="self-start text-base font-bold underline" onClick={() => setPaso('foto')} type="button">Repetir foto</button>
+          {vehiculos.length > 0 && (
+            <label className="text-lg font-bold">
+              Camión
+              <select className="mt-1 w-full rounded-xl border-2 border-black bg-white px-3 py-4 text-lg" onChange={(e) => setVeh(e.target.value)} value={veh}>
+                <option value="">Sin indicar</option>
+                {vehiculos.map((v) => <option key={v.id} value={v.matricula}>{v.matricula} · {v.nombre}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="text-lg font-bold">
+            Km (opcional)
+            <input
+              className="mt-1 w-full rounded-xl border-2 border-black px-3 py-4 text-2xl font-extrabold"
+              inputMode="numeric"
+              onChange={(e) => setKm(e.target.value)}
+              placeholder="Se leerá de la foto"
+              value={km}
+            />
+          </label>
+          <p className="text-base">Si lo dejas vacío, los km se leerán automáticamente de la foto al sincronizar.</p>
+          {kmEntrada != null && <p className="text-base font-bold">Km al entrar: {kmEntrada.toLocaleString('es-ES')}</p>}
+          {!kmValido && <p className="font-bold text-red-700">Escribe solo números.</p>}
+          {kmMenor && <p className="font-bold text-amber-700">Ojo: es menos que al entrar. Revísalo.</p>}
+          <button
+            className={`${big} disabled:opacity-60 ${siguiente === 'entrada' ? 'bg-green-700 text-white' : 'bg-zinc-900 text-white'}`}
+            disabled={ocupado || !kmValido}
+            onClick={fichar}
+            type="button"
+          >
+            {ocupado ? 'Guardando…' : siguiente === 'entrada' ? '✓ Fichar entrada' : '✓ Fichar salida'}
+          </button>
+        </Ventana>
+      )}
+
       <div className="rounded-2xl border-2 border-black p-4">
         <p className="text-lg font-bold">Última acción</p>
         {ultimo ? (
@@ -326,6 +481,7 @@ function Fichaje({ userId, regs, alta, volver }: { userId: string; regs: Registr
             <p className="text-2xl font-extrabold capitalize">
               {ultimo.accion} · {fmt(ultimo.fechaHora)}
             </p>
+            <p className="text-lg font-bold">{ultimo.km != null ? `${ultimo.km.toLocaleString('es-ES')} km` : ultimo.estado === 'sincronizado' ? 'Km no leídos' : 'Km: se leerán al sincronizar'}</p>
             <div className="mt-2">
               <Insignia e={ultimo.estado} />
             </div>
@@ -338,9 +494,9 @@ function Fichaje({ userId, regs, alta, volver }: { userId: string; regs: Registr
       {regs.length > 1 && (
         <ul className="grid gap-2">
           {regs.slice(1, 6).map((r) => (
-            <li className="flex items-center justify-between rounded-xl border-2 border-zinc-300 p-3" key={r.uuid}>
+            <li className="flex items-center justify-between gap-2 rounded-xl border-2 border-zinc-300 p-3" key={r.uuid}>
               <span className="font-bold capitalize">
-                {r.accion} · {fmt(r.fechaHora)}
+                {r.accion} · {fmt(r.fechaHora)}{r.km != null ? ` · ${r.km.toLocaleString('es-ES')} km` : ''}
               </span>
               <Insignia e={r.estado} />
             </li>
@@ -349,4 +505,19 @@ function Fichaje({ userId, regs, alta, volver }: { userId: string; regs: Registr
       )}
     </div>
   );
+}
+
+/** Reduce la foto a 1600 px de ancho (JPEG) para que pese poco al enviarla sin cobertura buena. */
+async function reducir(f: File): Promise<Blob> {
+  try {
+    const img = await createImageBitmap(f);
+    const w = Math.min(1600, img.width);
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = Math.round((img.height * w) / img.width);
+    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise((res) => c.toBlob((b) => res(b ?? f), 'image/jpeg', 0.85));
+  } catch {
+    return f;
+  }
 }

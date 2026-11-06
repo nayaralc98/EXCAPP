@@ -59,6 +59,12 @@ export const fichajes = sqliteTable(
     lng: real(),
     estadoSync: text('estado_sync').notNull().default('sincronizado'),
     uuidLocal: text('uuid_local').notNull(),
+    /** Kilómetros del cuentakilómetros del camión al fichar (leídos de la foto o escritos a mano). */
+    km: real(),
+    kmLeidoIa: integer('km_leido_ia').notNull().default(0),
+    fotoKmUrl: text('foto_km_url'),
+    fotoKmKey: text('foto_km_key'),
+    matricula: text().notNull().default(''),
   },
   (t) => [
     index('fichajes_usuario_idx').on(t.usuarioId, t.fechaHora),
