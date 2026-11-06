@@ -1,4 +1,3 @@
-import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
 import { users } from '@/db/schema';
@@ -51,14 +50,9 @@ export async function GET(req: Request) {
 
   if (sp.get('formato') === 'pdf') {
     const filas = body.map((c) => `<tr>${c.map((x) => `<td>${h(x)}</td>`).join('')}</tr>`).join('');
-    const html = `<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11px;color:#222}h1{font-size:18px}table{border-collapse:collapse;width:100%}th{background:#e8590c;color:#fff;text-align:left}th,td{border:1px solid #bbb;padding:5px}</style></head><body><h1>${h(titulo)}</h1><p>Generado el ${fmtFechaHora(Date.now())}</p><table><thead><tr>${head.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table></body></html>`;
-    try {
-      const pdf = await totalum.pdf.fromHtml({ name: nombre, html, options: { format: 'A4', landscape: true, printBackground: true } });
-      return Response.redirect(pdf.url, 302);
-    } catch (err) {
-      console.error('export pdf', err);
-      return new Response('No se pudo generar el PDF', { status: 502 });
-    }
+    const html = `<html><head><meta charset="utf-8"><title>${h(nombre)}</title><style>@page{size:A4 landscape;margin:12mm}@media print{.np{display:none}}body{font-family:Arial,sans-serif;font-size:11px;color:#222}h1{font-size:18px}table{border-collapse:collapse;width:100%}th{background:#e8590c;color:#fff;text-align:left}th,td{border:1px solid #bbb;padding:5px}</style></head><body><h1>${h(titulo)}</h1><p>Generado el ${fmtFechaHora(Date.now())}</p><table><thead><tr>${head.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table><script>addEventListener(\'load\',()=>print())</script></body></html>`;
+    // PDF gratis: la página se abre lista para imprimir y el navegador la guarda como PDF («Guardar como PDF»).
+    return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" } });
   }
   const bytes = crearXlsx([{ nombre: titulo.slice(0, 31), filas: [head, ...body] }]);
   return new Response(bytes as BodyInit, {

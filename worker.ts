@@ -1,18 +1,12 @@
-// Platform-owned Worker entry (A3.23, research 46 §6.3): OpenNext's Worker, run inside `withTotalumSession`. A GET
-// reads the project database from its nearest read replica; any other request writes to the primary and, for 10 s,
-// sends that browser's reads to the primary too (read-your-writes). App code (Drizzle over `totalumD1()`) is unchanged.
-// Not type-checked (tsconfig/eslint exclude it): `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
+// Entrada del Worker de Cloudflare: el Worker de OpenNext (la app Next.js) con cabeceras de seguridad, más el aviso
+// diario programado. No pasa por la comprobación de tipos: `.open-next/worker.js` solo existe tras `npm run build:cf`.
 import handler from './.open-next/worker.js';
-import { withTotalumSession } from 'totalum-sdk/d1';
 
 import { keepErrorMessages } from './src/lib/error-logs';
-import { namingVisitor, withVisitor } from './src/lib/visitor';
 
 // B2-BI9 (e): an Error in a console line reaches the project's logs with its message and cause chain.
 keepErrorMessages();
 
-// B3-AT6: the app's calls to Totalum name the visitor they are made for, so paid built-ins are limited per visitor.
-globalThis.fetch = namingVisitor(globalThis.fetch);
 
 // OpenNext's cache Durable Object classes: inert (no binding declares them), exported as OpenNext's entry does.
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from './.open-next/worker.js';
@@ -41,12 +35,12 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 // Review 57: another customer's site on the shared zones is same-site with this one, so the browser sends it this app's
 // SameSite=Lax session cookie. Next checks a server action's Origin and better-auth its own routes; a route handler
-// checks nothing. A state-changing request from a same-site page of another origin is refused (TOTALUM_ALLOWED_ORIGINS
+// checks nothing. A state-changing request from a same-site page of another origin is refused (ALLOWED_ORIGINS
 // may list a sibling host of the owner's own domain).
-function sameSiteWrite(request: Request, env: { TOTALUM_ALLOWED_ORIGINS?: string }): boolean {
+function sameSiteWrite(request: Request, env: { ALLOWED_ORIGINS?: string }): boolean {
   if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return false;
   if (request.headers.get('sec-fetch-site') !== 'same-site') return false;
-  const allowed = (env.TOTALUM_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean);
+  const allowed = (env.ALLOWED_ORIGINS ?? '').split(',').filter(Boolean);
   return !allowed.includes(request.headers.get('origin') ?? '');
 }
 
@@ -96,10 +90,21 @@ export default {
     if (sameSiteWrite(request, env))
       return secured(new Response('Refused: a request from another site', { status: 403 }), ctx);
     const [app, csp] = withNonce(request);
-    const response = withVisitor(request, env, () =>
-      withTotalumSession(app, env, (appEnv) => (handler as OpenNextHandler).fetch(app, appEnv, ctx)),
-    ).then((res) => secured(res, ctx, csp));
+    const response = (handler as OpenNextHandler).fetch(app, env, ctx).then((res) => secured(res, ctx, csp));
     ctx.waitUntil(response.catch(() => undefined));
     return response;
+  },
+  // Avisos diarios (wrangler.jsonc → triggers.crons): llama a la ruta del aviso dentro de este mismo Worker con una
+  // clave de un solo uso que solo conoce este proceso (src/lib/cron-job.ts).
+  scheduled: (_event: ScheduledController, env: object, ctx: ExecutionContext) => {
+    const clave = crypto.randomUUID();
+    (globalThis as Record<symbol, string>)[Symbol.for('excapp.cron')] = clave;
+    const req = new Request('https://cron.interno/api/cron/avisos', { method: 'POST', headers: { 'x-excapp-cron': clave } });
+    ctx.waitUntil(
+      (handler as OpenNextHandler)
+        .fetch(req, env, ctx)
+        .then(async (r) => console.log('cron avisos', r.status, await r.text()))
+        .catch((err: unknown) => console.error('cron avisos', err)),
+    );
   },
 };

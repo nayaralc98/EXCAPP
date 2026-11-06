@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
 import { fichajes } from '@/db/schema';
+import { guardarFoto } from '@/lib/fotos';
 import { leerKm, normMatricula } from '@/lib/leer-albaran';
 import { loadPage } from '@/lib/load-page';
 
@@ -50,9 +50,7 @@ export async function POST(req: Request) {
     if (!IMAGE_TYPES.includes(foto.type) || foto.size > 10_000_000)
       return Response.json({ ok: false, error: 'Foto no válida (JPEG, PNG o WebP, hasta 10 MB)' }, { status: 400 });
     try {
-      const up = await totalum.files.upload(foto, { name: `km-${uuid}.jpg`, folder: 'km', contentType: foto.type, private: true });
-      fotoKmKey = up.key;
-      fotoKmUrl = up.fileUrl ?? null;
+      fotoKmKey = await guardarFoto(`km/${user.id}/${uuid}.jpg`, foto, foto.type);
     } catch (err) {
       console.error('sync fichaje: foto km no subida', err);
       return Response.json({ ok: false, error: 'No se pudo subir la foto de los km' }, { status: 502 });

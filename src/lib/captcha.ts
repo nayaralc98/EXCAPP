@@ -8,7 +8,7 @@ import { site } from '@/lib/site';
 
 // Totalum's own captcha on sign-up and sign-in, published site only (A8.9 as amended 2026-10-01, research 57 §8).
 // No third party, no cookie. The auth form fetches a challenge from GET /api/captcha: HMAC-signed with the project's
-// TOTALUM_CAPTCHA_SECRET (PGM binds it on the published Worker), bound to the host, valid 5 min, single use (its nonce
+// CAPTCHA_SECRET (PGM binds it on the published Worker), bound to the host, valid 5 min, single use (its nonce
 // is kept in `rate_limits` until it expires). The form sends it back in `x-totalum-captcha` with the hidden honeypot
 // and a few browser signals. A visitor who looks normal passes invisibly (only a 2 s minimum fill time); a suspicious
 // one gets a 403 CHALLENGE_REQUIRED carrying a harder challenge: a SHA-256 proof of work its browser solves in a Web
@@ -30,7 +30,7 @@ const UNAVAILABLE = { code: 'CAPTCHA_UNAVAILABLE', message: 'Sign-up and sign-in
 export const captchaOn = () =>
   site.captcha &&
   !isPreviewSurface() &&
-  (!!process.env.TOTALUM_CAPTCHA_SECRET || process.env.TOTALUM_USAGE_ENV === 'live');
+  (!!process.env.CAPTCHA_SECRET);
 
 const b64 = (bytes: ArrayBuffer | string) =>
   (typeof bytes === 'string' ? Buffer.from(bytes) : Buffer.from(bytes)).toString('base64url');
@@ -39,7 +39,7 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 const hmacKey = () =>
   crypto.subtle.importKey(
     'raw',
-    utf8(process.env.TOTALUM_CAPTCHA_SECRET ?? ''),
+    utf8(process.env.CAPTCHA_SECRET ?? ''),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify'],
@@ -54,7 +54,7 @@ async function mint(host: string, d: number) {
 /** GET /api/captcha → `{ challenge, difficulty: 0 }`, or 404 when the captcha is off. */
 export async function issueChallenge(req: Request) {
   if (!captchaOn()) return Response.json({ code: 'CAPTCHA_OFF' }, { status: 404 });
-  if (!process.env.TOTALUM_CAPTCHA_SECRET) return Response.json(UNAVAILABLE, { status: 503 });
+  if (!process.env.CAPTCHA_SECRET) return Response.json(UNAVAILABLE, { status: 503 });
   return Response.json(await mint(new URL(requestOrigin(req)).host, 0), {
     headers: { 'cache-control': 'no-store' },
   });
@@ -148,7 +148,7 @@ export async function verifyCaptcha(
   counts: Parameters<typeof riskScore>[2],
 ) {
   if (!captchaOn()) return;
-  if (!process.env.TOTALUM_CAPTCHA_SECRET) throw new APIError('SERVICE_UNAVAILABLE', UNAVAILABLE);
+  if (!process.env.CAPTCHA_SECRET) throw new APIError('SERVICE_UNAVAILABLE', UNAVAILABLE);
   const fail = () => new APIError('FORBIDDEN', VERIFICATION_FAILED);
   const signed = await signedAnswer(headers);
   if (!signed) throw fail();
@@ -172,7 +172,7 @@ export async function verifyCaptcha(
  * not counted again (src/lib/auth.ts): a challenge and its answer are one sign-up, not two.
  */
 export async function answersChallenge(request: Request, host: string) {
-  if (!captchaOn() || !process.env.TOTALUM_CAPTCHA_SECRET) return false;
+  if (!captchaOn() || !process.env.CAPTCHA_SECRET) return false;
   const signed = await signedAnswer(request.headers);
   if (!signed?.claims.d || signed.claims.h !== host || signed.age > TTL_MS || signed.age < -5000)
     return false;
