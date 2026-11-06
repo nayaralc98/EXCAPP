@@ -25,7 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     (me) => [
       perfilQuery(me),
       db
-        .select({ id: fichajes.id, tipo: fichajes.tipo, fechaHora: fichajes.fechaHora, lat: fichajes.lat, lng: fichajes.lng, estado: fichajes.estadoSync, nombre: users.name })
+        .select({ id: fichajes.id, tipo: fichajes.tipo, fechaHora: fichajes.fechaHora, lat: fichajes.lat, lng: fichajes.lng, estado: fichajes.estadoSync, nombre: users.name, km: fichajes.km, kmLeidoIa: fichajes.kmLeidoIa, foto: fichajes.fotoKmKey, matricula: fichajes.matricula })
         .from(fichajes)
         .innerJoin(users, eq(users.id, fichajes.usuarioId))
         .where(w.length ? and(...w) : undefined)
@@ -60,7 +60,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-zinc-100 text-xs uppercase text-zinc-600">
-              <tr><th className="px-4 py-3">Trabajador</th><th className="px-4 py-3">Acción</th><th className="px-4 py-3">Fecha y hora</th><th className="hidden px-4 py-3 sm:table-cell">Ubicación</th><th className="px-4 py-3">Estado</th></tr>
+              <tr><th className="px-4 py-3">Trabajador</th><th className="px-4 py-3">Acción</th><th className="px-4 py-3">Fecha y hora</th><th className="px-4 py-3">Km</th><th className="hidden px-4 py-3 sm:table-cell">Ubicación</th><th className="px-4 py-3">Estado</th></tr>
             </thead>
             <tbody>
               {rows.map((r) => (
@@ -68,6 +68,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                   <td className="px-4 py-2">{r.nombre}</td>
                   <td className="px-4 py-2"><Badge tone={r.tipo === 'entrada' ? 'blue' : 'gray'}>{r.tipo === 'entrada' ? 'Entrada' : 'Salida'}</Badge></td>
                   <td className="px-4 py-2 whitespace-nowrap">{fmtFechaHora(r.fechaHora)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {r.km != null ? <b>{r.km.toLocaleString('es-ES')}</b> : '—'}
+                    {r.kmLeidoIa ? <span className="ml-1 text-xs text-zinc-500">(IA)</span> : null}
+                    {r.matricula && <div className="text-xs text-zinc-500">{r.matricula}</div>}
+                    {r.foto && <a className="block text-xs font-bold text-brand underline" href={`/api/fichajes/${r.id}/foto`} target="_blank">Ver foto</a>}
+                  </td>
                   <td className="hidden px-4 py-2 sm:table-cell">{r.lat != null && r.lng != null ? `${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}` : 'Sin GPS'}</td>
                   <td className="px-4 py-2"><Badge tone={tono[r.estado as keyof typeof tono] ?? 'gray'}>{r.estado}</Badge></td>
                 </tr>

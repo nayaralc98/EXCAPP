@@ -16,6 +16,8 @@ export type Registro = {
   serverId?: string;
   // fichaje
   accion?: 'entrada' | 'salida';
+  fotoKm?: Blob | null;
+  km?: number | null;
   mensaje?: string;
 };
 
@@ -56,7 +58,30 @@ export function posicion(ms = 4000): Promise<{ lat: number; lng: number } | null
   });
 }
 
-async function enviar(r: Registro): Promise<{ ok: boolean; red: boolean; id?: string; msg?: string }> {
+export type PermisoUbicacion = 'granted' | 'denied' | 'prompt' | 'unsupported';
+/** Estado del permiso de ubicación (sin pedirlo). */
+export async function permisoUbicacion(): Promise<PermisoUbicacion> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return 'unsupported';
+  try {
+    const p = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
+    return (p?.state as PermisoUbicacion) ?? 'prompt';
+  } catch {
+    return 'prompt';
+  }
+}
+/** Pide la ubicación con alta precisión (abre el aviso del navegador si hace falta). */
+export function pedirUbicacion(ms = 12000): Promise<{ lat: number; lng: number; precision: number } | { error: string }> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve({ error: 'Este móvil no permite ubicación.' });
+  return new Promise((res) =>
+    navigator.geolocation.getCurrentPosition(
+      (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy) }),
+      (e) => res({ error: e.code === e.PERMISSION_DENIED ? 'Permiso de ubicación denegado.' : 'No se encuentra la señal GPS.' }),
+      { timeout: ms, maximumAge: 30000, enableHighAccuracy: true },
+    ),
+  );
+}
+
+async function enviar(r: Registro): Promise<{ ok: boolean; red: boolean; id?: string; km?: number | null; msg?: string }> {
   try {
     let res: Response;
     if (r.tipo === 'albaran') {
@@ -69,14 +94,27 @@ async function enviar(r: Registro): Promise<{ ok: boolean; red: boolean; id?: st
       if (r.lat != null && r.lng != null) (f.set('lat', String(r.lat)), f.set('lng', String(r.lng)));
       if (r.foto) f.set('foto', r.foto, 'albaran.jpg');
       res = await fetch('/api/sync/albaran', { method: 'POST', body: f });
+    } else if (r.fotoKm) {
+      const f = new FormData();
+      f.set('uuid_local', r.uuid);
+      f.set('fecha_hora', String(r.fechaHora));
+      f.set('tipo', r.accion ?? '');
+      f.set('matricula', r.matricula ?? '');
+      if (r.km != null) f.set('km', String(r.km));
+      if (r.lat != null && r.lng != null) (f.set('lat', String(r.lat)), f.set('lng', String(r.lng)));
+      f.set('foto_km', r.fotoKm, 'km.jpg');
+      res = await fetch('/api/sync/fichaje', { method: 'POST', body: f });
     } else {
       res = await fetch('/api/sync/fichaje', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ uuid_local: r.uuid, fecha_hora: r.fechaHora, tipo: r.accion, lat: r.lat, lng: r.lng }),
+        body: JSON.stringify({ uuid_local: r.uuid, fecha_hora: r.fechaHora, tipo: r.accion, lat: r.lat, lng: r.lng, km: r.km ?? null, matricula: r.matricula ?? '' }),
       });
     }
-    if (res.ok) return { ok: true, red: false, id: ((await res.json()) as { id?: string }).id };
+    if (res.ok) {
+      const j = (await res.json()) as { id?: string; km?: number | null };
+      return { ok: true, red: false, id: j.id, km: j.km };
+    }
     // sin sesión o servidor caído: se reintentará solo; otro fallo: error visible (también se reintenta)
     if (res.status === 401 || res.status >= 500) return { ok: false, red: true };
     const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -96,7 +134,7 @@ export async function sincronizar(userId: string): Promise<boolean> {
     const lista = (await todos(userId)).filter((r) => r.estado !== 'sincronizado').reverse();
     for (const r of lista) {
       const o = await enviar(r);
-      if (o.ok) await guardar({ ...r, estado: 'sincronizado', serverId: o.id, foto: null, mensaje: undefined });
+      if (o.ok) await guardar({ ...r, estado: 'sincronizado', serverId: o.id, foto: null, fotoKm: null, km: o.km ?? r.km ?? null, mensaje: undefined });
       else if (!o.red) await guardar({ ...r, estado: 'error', mensaje: o.msg });
       else continue;
       cambios = true;

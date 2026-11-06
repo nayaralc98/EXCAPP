@@ -39,3 +39,32 @@ export async function leerAlbaran(imagen: Uint8Array | URL, mediaType = 'image/j
 
 export const limpiar = (s: string | undefined, max = 120) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 export const normMatricula = (s: string) => limpiar(s, 20).toUpperCase().replace(/[\s.-]+/g, '');
+
+const esquemaKm = z.object({
+  km: z.number().nullable().describe('Lectura total del cuentakilómetros (odómetro) en km, sin decimales parciales; null si no se lee con claridad'),
+});
+
+/** Lee los km del cuentakilómetros a partir de la foto del cuadro del camión. Devuelve null si no se lee. */
+export async function leerKm(imagen: Uint8Array, mediaType = 'image/jpeg'): Promise<number | null> {
+  try {
+    const { object } = await generateObject({
+      model: model('vision'),
+      schema: esquemaKm,
+      abortSignal: AbortSignal.timeout(25_000),
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Foto del cuadro de instrumentos de un camión. Devuelve la lectura TOTAL del cuentakilómetros (odómetro), no el parcial (trip) ni la velocidad. Si no se ve con claridad, devuelve null. No inventes.' },
+            { type: 'file', mediaType, data: imagen },
+          ],
+        },
+      ],
+    });
+    const km = object.km;
+    return km != null && Number.isFinite(km) && km >= 0 && km < 10_000_000 ? Math.round(km) : null;
+  } catch (err) {
+    console.error('leer km: fallo de lectura', err);
+    return null;
+  }
+}
