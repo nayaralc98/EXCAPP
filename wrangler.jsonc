@@ -3,8 +3,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "excapp",
   "main": "worker.ts",
-  // `wrangler deploy` construye la app antes de publicar (también en la compilación automática de Cloudflare).
-  "build": { "command": "node scripts/cf-build.mjs", "watch_dir": "src" },
   "compatibility_date": "2026-08-15",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   // sin el envoltorio `__name` de esbuild: una función que una página convierte en <script> lo llamaría en el navegador

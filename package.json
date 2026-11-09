@@ -15,14 +15,15 @@
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
     "build:cf": "NEXT_TELEMETRY_DISABLED=1 opennextjs-cloudflare build",
     "preview": "wrangler d1 migrations apply excapp --local && wrangler dev",
-    "deploy": "wrangler d1 migrations apply excapp --remote && wrangler deploy",
+    "deploy": "npm run build:cf && wrangler d1 migrations apply excapp --remote && wrangler deploy",
     "check-types-errors": "tsc --noEmit",
     "db:generate": "node scripts/db-generate.mjs",
     "db:migrate": "wrangler d1 migrations apply excapp --remote",
     "db:migrate:local": "wrangler d1 migrations apply excapp --local",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "node scripts/cf-build.mjs"
   },
   "dependencies": {
     "better-auth": "1.7.15",
