@@ -5,13 +5,12 @@ Todo lo que usa la app cabe en el plan gratuito de Cloudflare:
 | Pieza | Servicio | Límite gratuito |
 |---|---|---|
 | Web y servidor | Workers | 100.000 peticiones al día |
-| Base de datos | D1 | 5 GB |
-| Fotos | R2 | 10 GB |
+| Base de datos y fotos | D1 | 5 GB (unas 15.000 fotos además de los datos) |
 | Lectura de fotos con IA | Workers AI | 10.000 «neuronas» al día (cientos de fotos) |
 | Aviso diario a la oficina | Cron de Workers | incluido |
 | Correos | Resend (aparte) | 3.000 al mes |
 
-> R2 pide tener una tarjeta registrada en Cloudflare para activarlo, aunque no cobra nada mientras no se pase de 10 GB.
+No hace falta registrar tarjeta.
 
 ## 1. Preparar (una vez)
 
@@ -22,11 +21,10 @@ npm ci
 npx wrangler login
 ```
 
-Crea la base de datos y el almacén de fotos:
+Crea la base de datos:
 
 ```bash
 npx wrangler d1 create excapp
-npx wrangler r2 bucket create excapp-fotos
 ```
 
 `d1 create` muestra un `database_id`: cópialo en `wrangler.jsonc` en lugar de `00000000-0000-0000-0000-000000000000`.
@@ -62,7 +60,7 @@ Cada cambio posterior se publica con el mismo `npm run deploy`.
 npm run dev
 ```
 
-Abre <http://localhost:3100>. La base de datos y las fotos se guardan en `.wrangler/` (bórrala para empezar de cero).
+Abre <http://localhost:3100>. La base de datos (con las fotos) se guarda en `.wrangler/` (bórrala para empezar de cero).
 La IA de Cloudflare no funciona en local salvo con `CLOUDFLARE_API_TOKEN` definido: sin ella, las fotos se guardan
 igual y los datos se rellenan a mano.
 

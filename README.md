@@ -1,7 +1,7 @@
 # EXCAPP
 
 Albaranes y fichajes de conductores desde el móvil (también sin cobertura), con panel de control para la oficina.
-Next.js 16 en Cloudflare Workers: base de datos D1 con Drizzle, fotos en R2, lectura de fotos con Workers AI y
+Next.js 16 en Cloudflare Workers: base de datos D1 con Drizzle (también guarda las fotos), lectura de fotos con Workers AI y
 cuentas con better-auth.
 
 - **Publicar y configurar:** [DESPLIEGUE.md](DESPLIEGUE.md)

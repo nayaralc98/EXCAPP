@@ -245,7 +245,7 @@ function Camara({ userId, alta, volver }: { userId: string; alta: (r: Registro) 
               accept="image/*"
               capture="environment"
               className="sr-only"
-              onChange={(e) => e.target.files?.[0] && guardarFoto(e.target.files[0])}
+              onChange={async (e) => { const f = e.target.files?.[0]; if (f) await guardarFoto(await reducir(f)); }}
               type="file"
             />
           </label>

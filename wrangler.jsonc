@@ -17,8 +17,6 @@
       "migrations_dir": "drizzle",
     },
   ],
-  // Fotos de albaranes y del cuentakilómetros (privadas).
-  "r2_buckets": [{ "binding": "FOTOS", "bucket_name": "excapp-fotos" }],
   // Lectura de fotos con IA (cupo diario gratuito).
   "ai": { "binding": "AI" },
   // Aviso diario a la oficina a las 6:15 UTC (7:15 / 8:15 en Madrid).

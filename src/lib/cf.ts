@@ -1,9 +1,8 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-/** Recursos de Cloudflare que declara `wrangler.jsonc`: base de datos, fotos e IA. */
+/** Recursos de Cloudflare que declara `wrangler.jsonc`: base de datos e IA. */
 export type CfEnv = {
   DB: D1Database;
-  FOTOS: R2Bucket;
   AI: Ai;
 };
 
