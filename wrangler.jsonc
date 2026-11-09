@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "excapp",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "10be2b5e-0e25-417e-8500-2c835e6c4ca2",
       "migrations_dir": "drizzle",
     },
   ],
