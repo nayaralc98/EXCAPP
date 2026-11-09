@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
 import { albaranes } from '@/db/schema';
+import { guardarFoto, MAX_FOTO } from '@/lib/fotos';
 import { leerAlbaran, limpiar, normMatricula } from '@/lib/leer-albaran';
 import { loadPage } from '@/lib/load-page';
 
@@ -42,12 +42,10 @@ export async function POST(req: Request) {
   let leidoIa = 0;
   const foto = form.get('foto');
   if (foto instanceof File && foto.size > 0) {
-    if (!IMAGE_TYPES.includes(foto.type) || foto.size > 10_000_000)
-      return Response.json({ ok: false, error: 'Foto no válida (JPEG, PNG o WebP, hasta 10 MB)' }, { status: 400 });
+    if (!IMAGE_TYPES.includes(foto.type) || foto.size > MAX_FOTO)
+      return Response.json({ ok: false, error: 'Foto no válida (JPEG, PNG o WebP, hasta 1,9 MB)' }, { status: 400 });
     try {
-      const up = await totalum.files.upload(foto, { name: `albaran-${uuid}.jpg`, folder: 'albaranes', contentType: foto.type, private: true });
-      fotoKey = up.key;
-      fotoUrl = up.fileUrl ?? null;
+      fotoKey = await guardarFoto(`albaranes/${user.id}/${uuid}.jpg`, foto, foto.type);
     } catch (err) {
       console.error('sync albaran: foto no subida', err);
       return Response.json({ ok: false, error: 'No se pudo subir la foto' }, { status: 502 });

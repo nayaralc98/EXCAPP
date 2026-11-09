@@ -1,25 +1,36 @@
 import { is } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
+import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { SQLiteRaw } from 'drizzle-orm/sqlite-core/query-builders/raw';
-import { totalumD1 } from 'totalum-sdk/d1';
 
-import { watchQueryPlans } from './query-plan';
+import { cf } from '@/lib/cf';
+
 import * as schema from './schema';
 
-// The only Totalum mention in the data path (plan 05 §3.9): the TOTALUM_DB binding inside a Worker, HTTPS to
-// SDK-API with the project key anywhere else. Platform-owned; never edit.
-// `npm run dev` only (`next dev`): each new SELECT's plan is checked once, a whole-table read per row logs `slow query`.
-const client = process.env.NODE_ENV === 'development' ? watchQueryPlans(totalumD1()) : totalumD1();
-export const db = drizzle(client, { schema, casing: 'snake_case' });
+type Db = DrizzleD1Database<typeof schema>;
 
-// Drizzle 0.45.3's D1 `batch()` binds a query with parameters through `preparedQuery.stmt`, which a raw
-// `db.run/all/get/values(sql…)` never gets: `TypeError: Cannot read properties of undefined (reading 'bind')` before
-// anything runs (research 69: every generated booking failed). Give each raw item its statement, so a guarded
-// `INSERT … SELECT … WHERE` works inside `db.batch` and `loadPage` like any builder.
-const batch = db.batch.bind(db);
-db.batch = (queries) => {
-  for (const q of queries) {
-    if (is(q, SQLiteRaw) && !('stmt' in q)) Object.assign(q, { stmt: client.prepare(q.getQuery().sql) });
+// La base de datos D1 de Cloudflare (binding `DB` en wrangler.jsonc). Se abre en cada petición, porque en un Worker
+// los bindings llegan con la petición; `db` se usa como siempre (`db.select()…`).
+const porBinding = new WeakMap<D1Database, Db>();
+function abrir(): Db {
+  const d1 = cf().DB;
+  let d = porBinding.get(d1);
+  if (!d) {
+    d = drizzle(d1, { schema, casing: 'snake_case' });
+    // Drizzle 0.45 no prepara las consultas `sql` crudas dentro de `db.batch()`: se les da su sentencia aquí.
+    const batch = d.batch.bind(d);
+    d.batch = ((queries: Parameters<Db['batch']>[0]) => {
+      for (const q of queries) if (is(q, SQLiteRaw) && !('stmt' in q)) Object.assign(q, { stmt: d1.prepare(q.getQuery().sql) });
+      return batch(queries);
+    }) as unknown as Db['batch'];
+    porBinding.set(d1, d);
   }
-  return batch(queries);
-};
+  return d;
+}
+
+export const db = new Proxy({} as Db, {
+  get(_, prop) {
+    const d = abrir();
+    const v = Reflect.get(d, prop) as unknown;
+    return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(d) : v;
+  },
+});

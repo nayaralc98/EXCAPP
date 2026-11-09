@@ -2,7 +2,7 @@
 // below. Event logs, telemetry and analytics streams do not belong in this database (A3.18).
 export * from './schema.auth';
 
-import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { blob, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 import { users } from './schema.auth';
 
@@ -59,6 +59,12 @@ export const fichajes = sqliteTable(
     lng: real(),
     estadoSync: text('estado_sync').notNull().default('sincronizado'),
     uuidLocal: text('uuid_local').notNull(),
+    /** Kilómetros del cuentakilómetros del camión al fichar (leídos de la foto o escritos a mano). */
+    km: real(),
+    kmLeidoIa: integer('km_leido_ia').notNull().default(0),
+    fotoKmUrl: text('foto_km_url'),
+    fotoKmKey: text('foto_km_key'),
+    matricula: text().notNull().default(''),
   },
   (t) => [
     index('fichajes_usuario_idx').on(t.usuarioId, t.fechaHora),
@@ -106,3 +112,11 @@ export const incidencias = sqliteTable(
     uniqueIndex('incidencias_usuario_uuid_unique').on(t.usuarioId, t.uuidLocal),
   ],
 );
+
+/** Fotos de albaranes y del cuentakilómetros (JPEG reducido en el móvil, < 2 MB por foto, límite de D1). */
+export const fotos = sqliteTable('fotos', {
+  clave: text().primaryKey(),
+  tipo: text().notNull().default('image/jpeg'),
+  datos: blob({ mode: 'buffer' }).notNull(),
+  creadoEn: integer('creado_en').notNull(),
+});

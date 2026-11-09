@@ -1,11 +1,11 @@
 import { asc, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { totalum } from 'totalum-sdk';
 
 import { db } from '@/db';
 import { albaranes, users } from '@/db/schema';
 import { Badge, button, EmptyState, input } from '@/components/ui';
+import { bytesFoto } from '@/lib/fotos';
 import { albaranesQuery } from '@/lib/albaranes-query';
 import { leerAlbaran, limpiar, normMatricula } from '@/lib/leer-albaran';
 import { fmtFechaHora } from '@/lib/fechas';
@@ -26,7 +26,9 @@ async function leer(form: FormData) {
   if (!user || !esOficina(rolDe(user, data[0]))) return;
   const a = data[1][0];
   if (!a?.fotoKey) return;
-  const lec = await leerAlbaran(new URL(await totalum.files.getSignedUrl(a.fotoKey)));
+  const f = await bytesFoto(a.fotoKey);
+  if (!f) return;
+  const lec = await leerAlbaran(f.bytes, f.tipo);
   if (!lec) return;
   await db
     .update(albaranes)

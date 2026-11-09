@@ -1,15 +1,15 @@
-// B2-PJ8: a scheduled job does its work INSIDE the scheduler's request and answers with its outcome. Acknowledging
-// first and working in `after()` made a job failing every hour show `200 {"ok":true}`, so the scheduler never paused it
-// and never told the owner. Here a failure answers 500 with the error's message (kept in the job's runs and the log
-// line), and three in a row pause the job and tell the owner. Platform-owned.
-import { isTotalumCall } from '@/lib/totalum-call';
-
 const text = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Clave de un solo uso que `worker.ts` pone al lanzar un aviso programado (mismo proceso, nunca sale fuera). */
+const CLAVE = Symbol.for('excapp.cron');
+export function esLlamadaCron(req: Request): boolean {
+  const k = (globalThis as Record<symbol, string | undefined>)[CLAVE];
+  return !!k && req.headers.get('x-excapp-cron') === k;
+}
+
 /**
- * `export const POST = (req: Request) => cronJob(req, 'daily report', (signal) => sendDailyReport(signal));`
- * The work gets `signal` (pass it to `fetch`), must end within `timeoutMs` (the scheduler waits 30 s) and is tried
- * `retries` more times on a failure while time is left — so it must be safe to repeat, or pass `{ retries: 0 }`.
+ * Tarea programada: solo la lanza el cron de Cloudflare (ver `triggers.crons` en wrangler.jsonc y `scheduled` en
+ * worker.ts). Se reintenta una vez si falla, así que debe poder repetirse sin efectos dobles.
  */
 export async function cronJob(
   req: Request,
@@ -17,24 +17,15 @@ export async function cronJob(
   work: (signal: AbortSignal) => Promise<unknown>,
   { timeoutMs = 25_000, retries = 1 } = {},
 ): Promise<Response> {
-  if (!(await isTotalumCall(req))) return Response.json({ ok: false }, { status: 401 });
+  if (!esLlamadaCron(req)) return Response.json({ ok: false }, { status: 401 });
   const signal = AbortSignal.timeout(timeoutMs);
-  const late = `timed out after ${String(timeoutMs / 1000)} s`;
-  const over = () => signal.aborted;
-  const timedOut = new Promise<never>((_, reject) => {
-    signal.addEventListener('abort', () => {
-      reject(new Error(late));
-    });
-  });
-  timedOut.catch(() => undefined);
   let error = '';
-  for (let attempt = 0; attempt <= retries && !over(); attempt++) {
+  for (let attempt = 0; attempt <= retries && !signal.aborted; attempt++) {
     try {
-      const result = await Promise.race([work(signal), timedOut]);
+      const result = await work(signal);
       return Response.json({ ok: true, ...(result === undefined ? {} : { result }) });
     } catch (err) {
-      error = over() ? late : text(err);
-      // the message is in the line itself: a log keeps it even where an Error object prints as its stack only
+      error = text(err);
       console.error(`${name} failed (attempt ${String(attempt + 1)}): ${error}`);
     }
   }

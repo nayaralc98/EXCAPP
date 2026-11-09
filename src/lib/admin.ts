@@ -8,7 +8,7 @@ import { site } from '@/lib/site';
 // ownernone (Francesc 2026-10-16): the owner e-mail may be unset or '' (no default any more): then only `site.admins`,
 // and an empty entry is never an admin address.
 export function adminEmails(): string[] {
-  return [...site.admins, process.env.TOTALUM_OWNER_EMAIL ?? '']
+  return [...site.admins, process.env.ADMIN_EMAIL ?? '']
     .map((a) => a.trim().toLowerCase())
     .filter((a) => a !== '');
 }

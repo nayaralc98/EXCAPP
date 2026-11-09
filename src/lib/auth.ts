@@ -4,12 +4,12 @@ import { getSessionCookie } from 'better-auth/cookies';
 import { nextCookies } from 'better-auth/next-js';
 import { emailOTP } from 'better-auth/plugins/email-otp';
 import { headers } from 'next/headers';
-import { totalum } from 'totalum-sdk';
 
 import { text } from '@/app/(accounts)/text';
 import { db } from '@/db';
 import * as schema from '@/db/schema.auth';
 import { answersChallenge } from '@/lib/captcha';
+import { enviarCorreo } from '@/lib/correo';
 import { claimFirstUser, resolveFirstUser } from '@/lib/first-user';
 import { countFailures, refuse } from '@/lib/login-guard';
 import { isPreviewSurface, requestOrigin } from '@/lib/request-origin';
@@ -19,7 +19,6 @@ import { site } from '@/lib/site';
 // own origin (live host or temporal link) is trusted per request; a wildcard over the customer zones would trust every
 // other customer's site, same-site with this one (security review 55). The platform only embeds the preview, so the live
 // site never trusts it: a reset `redirectTo` could otherwise land the token on a platform page (review 57 R1).
-const PLATFORM_ORIGINS = ['https://platform.totalum.app'];
 const list = (value: string | undefined) => value?.split(',').filter(Boolean) ?? [];
 
 /**
@@ -81,9 +80,8 @@ function createAuth(origin: string, framed: boolean) {
     socialProviders: { ...(google && { google: { ...google, prompt: 'select_account' as const } }) },
     trustedOrigins: [
       origin,
-      ...(preview ? PLATFORM_ORIGINS : []),
-      ...list(process.env.TOTALUM_PUBLIC_HOSTS).map((host) => `https://${host}`),
-      ...list(process.env.TOTALUM_ALLOWED_ORIGINS),
+            ...list(process.env.PUBLIC_HOSTS).map((host) => `https://${host}`),
+      ...list(process.env.ALLOWED_ORIGINS),
     ],
     // The signed session cookie answers `getSession` for 5 min without a database round trip (research 46 §6.4: two
     // round trips, ~90 ms, off every page and API call); a sign-out or revoked session reaches other tabs within 5 min.
@@ -115,7 +113,7 @@ function createAuth(origin: string, framed: boolean) {
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
       // `__Host-` on https: no other host may set these cookies. Every customer site shares the same parent zones (not
       // on the Public Suffix List), so with `__Secure-` a sibling site could plant its session here (review 57).
-      cookiePrefix: `${https ? '__Host-' : ''}tlm_${process.env.TOTALUM_PROJECT_ID ?? 'app'}`,
+      cookiePrefix: `${https ? '__Host-' : ''}excapp`,
       useSecureCookies: false,
       // A4.14: preview surfaces live in the platform's cross-site iframe, so their cookie is CHIPS-partitioned (and so is
       // a live site's inside another site's frame).
@@ -132,10 +130,8 @@ function createAuth(origin: string, framed: boolean) {
         storeOTP: 'hashed',
         overrideDefaultEmailVerification: true,
         sendVerificationOTP: async ({ email, otp, type }) => {
-          await totalum.email
-            .send({
+          await enviarCorreo({
               to: email,
-              from: { name: site.name }, // SB3: the app's name, never the project id
               subject: type === 'forget-password' ? text.email.resetSubject : text.email.verifySubject,
               html: text.email.body(otp),
             })
